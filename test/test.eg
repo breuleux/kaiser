@@ -158,4 +158,20 @@ describe "id generation":
       test{charlie.prototype, mkpkg{.minor}, "npm:olive@3.2/charlie"}
       test{{name = "diana"}, mkpkg{.patch}, "npm:olive@3.2.1/diana"}
 
+   it "from package information (data version)":
+      mkpkg{use-version} =
+         {package = {name = "oliver", version = "0.0.0", data-version = "3.2.1"}
+          = use-version}
+
+      test{obj, opts, expected} =
+         register{obj, opts}
+         assert obj[TYPEID] === expected
+
+      alice{} = 123
+
+      test{alice, mkpkg{null}, "npm:oliver/alice"}
+      test{{name = "bob"}, mkpkg{.major}, "npm:oliver@d3/bob"}
+      test{charlie.prototype, mkpkg{.minor}, "npm:oliver@d3.2/charlie"}
+      test{{name = "diana"}, mkpkg{.patch}, "npm:oliver@d3.2.1/diana"}
+
 

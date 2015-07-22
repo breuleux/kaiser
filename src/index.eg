@@ -44,9 +44,10 @@ make-type-id{object, match policy} =
    {=> package, => use-version = null} ->
       version = match use-version:
          false? -> ""
-         .major -> '@{package.version.split{"."}[0]}'
-         .minor -> '@{package.version.split{"."}[0...2].join{"."}}'
-         .patch -> '@{package.version}'
+         do: data-version = if{package.dataVersion as dv, 'd{dv}', package.version}
+         .major -> '@{data-version.split{"."}[0]}'
+         .minor -> '@{data-version.split{"."}[0...2].join{"."}}'
+         .patch -> '@{data-version}'
       'npm:{package.name}{version}/{object-name{object}}'
    else ->
       throw E.kaiser.register.id{"No typeId provided."}
