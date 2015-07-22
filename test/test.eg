@@ -109,8 +109,8 @@ describe "register":
       register-singletons{{f, g}, "f:1"}
       assert ok{f}
       assert ok{g}
-      assert f[TYPEID] === "f:1/0"
-      assert g[TYPEID] === "f:1/1"
+      assert f[TYPEID] === 'f:1/f'
+      assert g[TYPEID] === 'f:1/g'
 
    it "register-singletons (2)":
       f{x} = x * x
@@ -131,7 +131,7 @@ describe "id generation":
       g{name} =
          b = {=}
          b[name]{} = "name!!"
-         register{b, {type-id = "C:2", type-variant = name}}
+         register{b, {type-id = "C:2", variant = name}}
          b
 
       {.alice, .bob, .charlie} each name ->
@@ -155,7 +155,7 @@ describe "id generation":
 
       test{alice, mkpkg{null}, "npm:olive/alice"}
       test{{name = "bob"}, mkpkg{.major}, "npm:olive@3/bob"}
-      test{charlie, mkpkg{.minor}, "npm:olive@3.2/charlie"}
+      test{charlie.prototype, mkpkg{.minor}, "npm:olive@3.2/charlie"}
       test{{name = "diana"}, mkpkg{.patch}, "npm:olive@3.2.1/diana"}
 
 

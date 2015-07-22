@@ -26,9 +26,20 @@ TYPEID = Symbol{.TYPEID}
 
 registry = {=}
 
+object-name{object, req = false} =
+   match object??.name or object??.constructor??.name:
+      false? when req ->
+         throw E.kaiser.name-required with
+            "The object or function to register must have a name field or its constructor must have a name."
+      false? ->
+         ""
+      name -> name
 
 make-type-id{object, match policy} =
-   {=> type-id, => type-variant} -> type-id + "/" + JSON.stringify{type-variant}
+   {=> type-id, => variant} -> type-id + "/" + JSON.stringify{variant}
+   {=> type-id, name-variant => match} ->
+      === true -> type-id + "/" + object-name{object}
+      name-variant -> type-id + "/" + name-variant
    {=> type-id} -> type-id
    {=> package, => use-version = null} ->
       version = match use-version:
@@ -36,8 +47,7 @@ make-type-id{object, match policy} =
          .major -> '@{package.version.split{"."}[0]}'
          .minor -> '@{package.version.split{"."}[0...2].join{"."}}'
          .patch -> '@{package.version}'
-      name = object??.name or object??.prototype??.constructor??.name or ""
-      'npm:{package.name}{version}/{name}'
+      'npm:{package.name}{version}/{object-name{object}}'
    else ->
       throw E.kaiser.register.id{"No typeId provided."}
 
@@ -79,8 +89,8 @@ register{object, _policy} =
    true
 
 register-all{objects, policy} =
-   enumerate{objects} each {i, object} ->
-      register{object, policy & {type-variant = i}}
+   objects each object ->
+      register{object, policy & {name-variant = object-name{object}}}
 
 
 object-serializer{proto} = {
@@ -112,8 +122,9 @@ register-singletons{objects, _policy} =
    policy = match _policy:
       String? type-id -> {= type-id}
       else -> _policy
-   enumerate{objects} each {i, object} ->
-      register{object, singleton-serializer{object} & [policy & {type-variant = i}]}
+   objects each object ->
+      register{object, singleton-serializer{object} & [policy & {name-variant = object-name{object}}]}
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
