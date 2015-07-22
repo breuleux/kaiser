@@ -14,8 +14,10 @@ provide:
 ;; Symbols ;;
 ;;;;;;;;;;;;;
 
-
-TYPEID = Symbol{.TYPEID}
+TYPEID and global["--KAISER--TYPEID"] =
+   match global["--KAISER--TYPEID"]:
+      undefined? -> Symbol{.TYPEID}
+      existing -> existing
 
 
 
