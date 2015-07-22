@@ -1,0 +1,199 @@
+
+provide:
+   TYPEID
+   serialize
+   deserialize
+   register, register-all
+   register-singleton, register-singletons
+
+   register-singleton as register-function
+   register-singletons as register-functions
+
+
+;;;;;;;;;;;;;
+;; Symbols ;;
+;;;;;;;;;;;;;
+
+
+TYPEID = Symbol{.TYPEID}
+
+
+
+;;;;;;;;;;;;;;
+;; Registry ;;
+;;;;;;;;;;;;;;
+
+
+registry = {=}
+
+
+make-type-id{object, match policy} =
+   {=> type-id, => type-variant} -> type-id + "/" + JSON.stringify{type-variant}
+   {=> type-id} -> type-id
+   {=> package, => use-version = null} ->
+      version = match use-version:
+         false? -> ""
+         .major -> '@{package.version.split{"."}[0]}'
+         .minor -> '@{package.version.split{"."}[0...2].join{"."}}'
+         .patch -> '@{package.version}'
+      name = object??.name or object??.prototype??.constructor??.name or ""
+      'npm:{package.name}{version}/{name}'
+   else ->
+      throw E.kaiser.register.id{"No typeId provided."}
+
+
+register{object, _policy} =
+
+   policy = object-serializer{object} & _policy
+
+   policy.type-id and type-id = make-type-id{object, policy}
+
+   if Object.is-frozen{object}:
+      throw E.kaiser.frozen with
+         "kaiser cannot register frozen objects as serializable types; "
+         \ + "either register them before freezing them, or register their prototypes."
+
+   policy.on-duplicate or= .error
+   policy.target or= .direct
+
+   prev = registry[type-id]
+   if prev and prev !== policy:
+      match prev.on-duplicate:
+         .error or when policy.on-duplicate === .error ->
+            throw E.kaiser.duplicate-id with 
+               'Duplicate typeId: "{type-id}". You can control this error'
+               \ + ' with the onDuplicate option to kaiser.register'
+               \ + ' (onDuplicate: "error" (default), "(warn-)keep" or "(warn-)replace").'
+         .warn-keep ->
+            console.warn{'WARNING: Duplicate typeId: "{type-id}". Keeping previous.'}
+            return false
+         .warn or .warn-replace ->
+            console.warn{'WARNING: Duplicate typeId: "{type-id}". Replacing.'}
+         .keep ->
+            return false
+         .replace ->
+            pass
+
+   registry[type-id] = policy
+   object[TYPEID] = type-id
+   true
+
+register-all{objects, policy} =
+   enumerate{objects} each {i, object} ->
+      register{object, policy & {type-variant = i}}
+
+
+object-serializer{proto} = {
+   target = "direct"
+   serialize{x} = object with items{x}
+   deserialize{x} =
+      rval = Object.create{proto}
+      items{x} each {k, v} -> rval[k] = v
+      rval
+}
+
+singleton-serializer{object} = {
+   target = "self"
+   serialize{_} = null
+   deserialize{_} = object
+}
+
+register-singleton{object, match = null} =
+   null? ->
+      {o} -> register-singleton{o, object}
+   String? type-id ->
+      register{object, singleton-serializer{object} & {= type-id}}
+      object
+   policy ->
+      register{object, singleton-serializer{object} & policy}
+      object
+
+register-singletons{objects, _policy} =
+   policy = match _policy:
+      String? type-id -> {= type-id}
+      else -> _policy
+   enumerate{objects} each {i, object} ->
+      register{object, singleton-serializer{object} & [policy & {type-variant = i}]}
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Serialize/deserialize ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-object{match obj} =
+   null? or undefined? or Boolean? or Number? or String? ->
+      {type-id = 'native', data = obj}
+   Array? ->
+      obj each x -> to-object{x}
+   else ->
+      tid = obj[TYPEID]
+      if not tid:
+         throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
+      ser0 = match registry[tid]:
+         undefined? ->
+            throw E.kaiser.serialize{'Cannot serialize typeId: "{tid}" for object {obj}'}
+         policy and {target => match} ->
+            .self when not Object.has-own-property.call{obj, TYPEID} ->
+               throw E.kaiser.serialize with
+                  'Object has no typeId and cannot be serialized: {obj} [1]'
+            .direct and p is Object.get-prototype-of{obj} when not p.has-own-property.call{p, TYPEID} ->
+               throw E.kaiser.serialize with
+                  'Object has no typeId and cannot be serialized: {obj} [2]'
+            else ->
+               policy.serialize{obj}
+      ser1 = match ser0:
+         null? or undefined? or String? or Number? or Boolean? ->
+            ser0
+         Array? ->
+            ser0 each x -> to-object{x}
+         Object? ->
+            object with items{ser0} each {k, v} -> {k, to-object{v}}
+      {type-id = tid, data = ser1}
+
+serialize{obj} =
+   JSON.stringify{to-object{obj}}
+
+deserialize{repr} =
+   unobj{JSON.parse{repr}} where unobj{match obj} =
+      Array? ->
+         obj each x -> unobj{x}
+      else ->
+         tid = obj.type-id
+         match tid:
+            .native ->
+               obj.data
+            else ->
+               deser = match registry[tid]:
+                  undefined? ->
+                     throw E.kaiser.deserialize{'No deserializer for typeId "{tid}"'}
+                  policy ->
+                     policy.deserialize with match obj.data as data:
+                        null? or undefined? or String? or Number? or Boolean? ->
+                           data
+                        Array? ->
+                           data each x -> unobj{x}
+                        Object? ->
+                           object with items{data} each {k, v} ->
+                              {k, unobj{v}}
+
+
+register{Object.prototype} with {
+   type-id = "builtin:Object"
+   on-duplicate = .error
+   target = .direct
+   serialize{obj} =
+      obj
+   deserialize{obj} =
+      obj
+}
+
+register{Date.prototype} with {
+   type-id = "builtin:Date"
+   on-duplicate = .error
+   target = .direct
+   serialize{obj} =
+      String{obj}
+   deserialize{s} =
+      new Date{s}
+}
+
