@@ -5,19 +5,20 @@ provide:
    deserialize
    register, register-all
    register-singleton, register-singletons
+   register-function, register-functions
 
-   register-singleton as register-function
-   register-singletons as register-functions
+   true as loaded
+
+
+if global["@@KAISER"]??.loaded:
+   return global["@@KAISER"]
 
 
 ;;;;;;;;;;;;;
 ;; Symbols ;;
 ;;;;;;;;;;;;;
 
-TYPEID and global["--KAISER--TYPEID"] =
-   match global["--KAISER--TYPEID"]:
-      undefined? -> Symbol{.TYPEID}
-      existing -> existing
+TYPEID = Symbol{.TYPEID}
 
 
 
@@ -128,6 +129,9 @@ register-singletons{objects, _policy} =
    objects each object ->
       register{object, singleton-serializer{object} & [policy & {name-variant = object-name{object}}]}
 
+register-function = register-singleton
+register-functions = register-singletons
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -211,3 +215,10 @@ register{Date.prototype} with {
       new Date{s}
 }
 
+cmds = {= register, = register-all
+        = register-singleton, = register-singletons
+        = register-function, = register-functions}
+
+[global["@@KAISER"]??.waiting-list or {}] each {cmd, args} ->
+   cmds[cmd][args]
+global["@@KAISER"] = module.exports
