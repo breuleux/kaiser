@@ -1,8 +1,13 @@
 
 provide:
+
    TYPEID
-   serialize
-   deserialize
+
+   Serializer
+   default-serializer
+   serialize, deserialize
+   shallow-copy, deep-copy
+
    register, register-all
    register-singleton, register-singletons
    register-function, register-functions
@@ -138,45 +143,59 @@ register-functions = register-singletons
 ;; Serialize/deserialize ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-to-object{match obj} =
-   null? or undefined? or Boolean? or Number? or String? ->
-      {type-id = 'native', data = obj}
-   Array? ->
-      obj each x -> to-object{x}
-   else ->
-      tid = obj[TYPEID]
-      if not tid:
-         throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
-      ser0 = match registry[tid]:
-         undefined? ->
-            throw E.kaiser.serialize{'Cannot serialize typeId: "{tid}" for object {obj}'}
-         policy and {target => match} ->
-            .self when not Object.has-own-property.call{obj, TYPEID} ->
-               throw E.kaiser.serialize with
-                  'Object has no typeId and cannot be serialized: {obj} [1]'
-            .direct and p is Object.get-prototype-of{obj} when not p.has-own-property.call{p, TYPEID} ->
-               throw E.kaiser.serialize with
-                  'Object has no typeId and cannot be serialized: {obj} [2]'
-            else ->
-               policy.serialize{obj}
-      ser1 = match ser0:
-         null? or undefined? or String? or Number? or Boolean? ->
-            ser0
-         Array? ->
-            ser0 each x -> to-object{x}
-         Object? ->
-            object with items{ser0} each {k, v} -> {k, to-object{v}}
-      {type-id = tid, data = ser1}
+class Serializer:
 
-serialize{obj} =
-   JSON.stringify{to-object{obj}}
+   constructor{@white-list = null} =
+      if @white-list:
+         @white-list["native"] = true
+         @white-list["builtin:Object"] = true
 
-deserialize{repr} =
-   unobj{JSON.parse{repr}} where unobj{match obj} =
+   to-object{match obj, recursive = true} =
+      null? or undefined? or Boolean? or Number? or String? ->
+         {type-id = 'native', data = obj}
+      Array? when recursive ->
+         obj each x -> @to-object{x}
       Array? ->
-         obj each x -> unobj{x}
+         obj each x -> x
+      else ->
+         tid = obj[TYPEID]
+         if not tid:
+            throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
+         if @white-list and not @white-list[tid]:
+            throw E.kaiser.serialize{'Object is not white-listed for serialization: {obj}'}
+         ser0 = match registry[tid]:
+            undefined? ->
+               throw E.kaiser.serialize{'Cannot serialize typeId: "{tid}" for object {obj}'}
+            policy and {target => match} ->
+               .self when not Object.has-own-property.call{obj, TYPEID} ->
+                  throw E.kaiser.serialize with
+                     'Object has no typeId and cannot be serialized: {obj} [1]'
+               .direct and p is Object.get-prototype-of{obj} when not p.has-own-property.call{p, TYPEID} ->
+                  throw E.kaiser.serialize with
+                     'Object has no typeId and cannot be serialized: {obj} [2]'
+               else ->
+                  policy.serialize{obj}
+         ser1 =
+            match ser0:
+               when not recursive ->
+                  ser0
+               null? or undefined? or String? or Number? or Boolean? ->
+                  ser0
+               Array? ->
+                  ser0 each x -> @to-object{x}
+               Object? ->
+                  object with items{ser0} each {k, v} -> {k, @to-object{v}}
+         {type-id = tid, data = ser1}
+
+   from-object{match obj, recursive = true} =
+      Array? when recursive ->
+         obj each x -> @from-object{x}
+      Array? ->
+         obj each x -> x
       else ->
          tid = obj.type-id
+         if @white-list and not @white-list[tid]:
+            throw E.kaiser.deserialize{'Cannot deserialize {obj.data} because typeId "{tid}" is not in the whitelist'}
          match tid:
             .native ->
                obj.data
@@ -186,14 +205,42 @@ deserialize{repr} =
                      throw E.kaiser.deserialize{'No deserializer for typeId "{tid}"'}
                   policy ->
                      policy.deserialize with match obj.data as data:
+                        when not recursive ->
+                           object with items{data}
                         null? or undefined? or String? or Number? or Boolean? ->
                            data
                         Array? ->
-                           data each x -> unobj{x}
+                           data each x -> @from-object{x}
                         Object? ->
                            object with items{data} each {k, v} ->
-                              {k, unobj{v}}
+                              {k, @from-object{v}}
+      
 
+   serialize{obj} =
+      JSON.stringify{@to-object{obj}}
+
+   deserialize{repr} =
+      @from-object{JSON.parse{repr}}
+
+   shallow-copy{obj} =
+      @from-object{@to-object{obj, false}, false}
+
+   deep-copy{obj} =
+      @from-object{@to-object{obj}}
+
+
+default-serializer = Serializer{}
+
+serialize = default-serializer.serialize.bind{default-serializer}
+deserialize = default-serializer.deserialize.bind{default-serializer}
+shallow-copy = default-serializer.shallow-copy.bind{default-serializer}
+deep-copy = default-serializer.deep-copy.bind{default-serializer}
+
+
+
+;;;;;;;;;;;;;;
+;; BUILTINS ;;
+;;;;;;;;;;;;;;
 
 register{Object.prototype} with {
    type-id = "builtin:Object"
@@ -222,3 +269,4 @@ cmds = {= register, = register-all
 [global["@@KAISER"]??.waiting-list or {}] each {cmd, args} ->
    cmds[cmd][args]
 global["@@KAISER"] = module.exports
+

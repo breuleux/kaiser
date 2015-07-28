@@ -11,10 +11,20 @@ require:
       TYPEID
       register, register-all
       register-singleton, register-singletons
-      serialize, deserialize
+      Serializer, default-serializer, serialize, deserialize
+      shallow-copy, deep-copy
 
 round{x} =
    deserialize{serialize{x}}
+
+test-round{ser = default-serializer, x} =
+   assert ser.round{x} == x
+
+method Serializer.prototype.round{x} =
+   @deserialize{@serialize{x}}
+
+method Serializer.prototype.test-round{x} =
+   test-round{@, x}
 
 ok{obj} =
    ser = serialize{obj}
@@ -173,5 +183,57 @@ describe "id generation":
       test{{name = "bob"}, mkpkg{.major}, "npm:oliver@d3/bob"}
       test{charlie.prototype, mkpkg{.minor}, "npm:oliver@d3.2/charlie"}
       test{{name = "diana"}, mkpkg{.patch}, "npm:oliver@d3.2.1/diana"}
+
+
+class A:
+   hello{} = "hello"
+   [^Symbol.equals]{x} = A? x
+class B:
+   bonjour{} = "bonjour"
+   [^Symbol.equals]{x} = B? x
+
+describe "whitelisting":
+
+   before:
+      register{A.prototype} with {type-id = "c:A"}
+      register{B.prototype} with {type-id = "c:B"}
+      @s = Serializer{"c:A" = true}
+
+   it "allows builtins":
+      using @s:
+         @test-round{3}
+         @test-round{"hello"}
+         @test-round{{1, 2, 3, 4}}
+         @test-round{a = 1, b = 2, c = {d = 3, e = 4}}
+
+   it "allows classes in whitelist":
+      using @s:
+         @test-round with A{}
+         @test-round with {A{}, A{}, 3, 4}
+
+   it "does not allow classes not in whitelist":
+      using @s:
+         expect-error E.kaiser.serialize:
+            @test-round with new Date{}
+         expect-error E.kaiser.serialize:
+            @test-round with {d = new Date{}}
+         expect-error E.kaiser.serialize:
+            @test-round with {1, 2, B{}}
+
+describe "copy":
+
+   it "shallow":
+      a = {a = 1, b = 2, c = {d = 3, e = 4}}
+      b = shallow-copy{a}
+      assert a !== b
+      assert a == b
+      assert a.c === b.c
+
+   it "deep":
+      a = {a = 1, b = 2, c = {d = 3, e = 4}}
+      b = deep-copy{a}
+      assert a !== b
+      assert a == b
+      assert a.c !== b.c
 
 
