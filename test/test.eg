@@ -93,6 +93,14 @@ describe "register":
       assert Summer? obj2
       assert obj2.sum{} === 21
 
+   it "classes (when constructor given)":
+      Summer = s{}
+      register{Summer, {type-id = "c:02"}}
+      obj = Summer{10, 11}
+      obj2 = deserialize{serialize{obj}}
+      assert Summer? obj2
+      assert obj2.sum{} === 21
+
    it "custom serialization":
       Summer = s{}
       register{Summer.prototype} with {
@@ -154,7 +162,8 @@ describe "id generation":
 
    it "from package information":
       mkpkg{use-version} =
-         {package = {name = "olive", version = "3.2.1"}
+         {ignore-prototype = true
+          package = {name = "olive", version = "3.2.1"}
           = use-version}
 
       test{obj, opts, expected} =
@@ -170,7 +179,8 @@ describe "id generation":
 
    it "from package information (data version)":
       mkpkg{use-version} =
-         {package = {name = "oliver", version = "0.0.0", data-version = "3.2.1"}
+         {ignore-prototype = true
+          package = {name = "oliver", version = "0.0.0", data-version = "3.2.1"}
           = use-version}
 
       test{obj, opts, expected} =
@@ -197,7 +207,7 @@ describe "whitelisting":
    before:
       register{A.prototype} with {type-id = "c:A"}
       register{B.prototype} with {type-id = "c:B"}
-      @s = Serializer{"c:A" = true}
+      @s = Serializer{"c:A"}
 
    it "allows builtins":
       using @s:
@@ -219,6 +229,21 @@ describe "whitelisting":
             @test-round with {d = new Date{}}
          expect-error E.kaiser.serialize:
             @test-round with {1, 2, B{}}
+
+   it "has multiple interfaces":
+      {
+         "c:A"
+         A
+         A.prototype
+         {A}
+         {B.prototype, {A.prototype}}
+      }
+      \ each Serializer! [@] ->
+         @test-round with A{}
+         expect-error E.kaiser.serialize:
+            @test-round with new Date{}
+
+
 
 describe "copy":
 

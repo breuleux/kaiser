@@ -65,15 +65,15 @@ register{object, _policy} =
 
    policy = object-serializer{object} & _policy
 
+   if policy.target !== .self and object.prototype and not policy.ignore-prototype:
+      return register{object.prototype, _policy}
+
    policy.type-id and type-id = make-type-id{object, policy}
 
    if Object.is-frozen{object}:
       throw E.kaiser.frozen with
          "kaiser cannot register frozen objects as serializable types; "
          \ + "either register them before freezing them, or register their prototypes."
-
-   policy.on-duplicate or= .error
-   policy.target or= .direct
 
    prev = registry[type-id]
    if prev and prev !== policy:
@@ -103,7 +103,9 @@ register-all{objects, policy} =
 
 
 object-serializer{proto} = {
-   target = "direct"
+   on-duplicate = .error
+   target = .direct
+   ignore-prototype = false
    serialize{x} = object with items{x}
    deserialize{x} =
       rval = Object.create{proto}
@@ -145,10 +147,23 @@ register-functions = register-singletons
 
 class Serializer:
 
-   constructor{@white-list = null} =
-      if @white-list:
-         @white-list["native"] = true
-         @white-list["builtin:Object"] = true
+   constructor{match white-list = null} =
+      null? ->
+         @white-list = null
+      else ->
+         @white-list and wl = {
+            native = true
+            "builtin:Object" = true
+         }
+         acquire{white-list or {}} where acquire{match w} =
+            Array? ->
+               w each entry -> acquire{entry}
+            String? ->
+               wl[w] = true
+            {prototype => {^TYPEID => tid}} ->
+               wl[tid] = true
+            {^TYPEID => tid} ->
+               wl[tid] = true
 
    to-object{match obj, recursive = true} =
       null? or undefined? or Boolean? or Number? or String? ->
@@ -162,7 +177,7 @@ class Serializer:
          if not tid:
             throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
          if @white-list and not @white-list[tid]:
-            throw E.kaiser.serialize{'Object is not white-listed for serialization: {obj}'}
+            throw E.kaiser.serialize{'Object with type id "{tid}" is not white-listed for serialization: {obj}'}
          ser0 = match registry[tid]:
             undefined? ->
                throw E.kaiser.serialize{'Cannot serialize typeId: "{tid}" for object {obj}'}
