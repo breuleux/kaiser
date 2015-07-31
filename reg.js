@@ -1,18 +1,19 @@
-var kz = "@@KAISER";
-if (!global[kz]) {
-    var waitingList = [];
-    k = {loaded: false, waitingList: waitingList};
-    ["", "All", "Singleton", "Singletons", "Function", "Functions"].forEach(function (f) {
-        var name = "register" + f;
-        k[name] = function() {
-            if (global[kz].loaded) {
-                global[kz][name].apply(null, arguments);
+var K = "@@KAISER";
+var g = global;
+if (!g[K]) {
+    var w = [];
+    k = {loaded: 0, waitingList: w};
+    ["", "All", "Singleton", "Singletons", "Function", "Functions"].map(function (f) {
+        var n = "register" + f;
+        k[n] = function() {
+            if (g[K].loaded) {
+                g[K][n].apply(null, arguments);
             }
             else {
-                waitingList.push([name, [].slice.call(arguments)]);
+                w.push([n, [].slice.call(arguments)]);
             }
         };
      });
-    global[kz] = k;
+    g[K] = k;
 }
-module.exports = global[kz];
+module.exports = g[K];
