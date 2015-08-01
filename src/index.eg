@@ -277,6 +277,27 @@ register{Date.prototype} with {
       new Date{s}
 }
 
+register{Error.prototype} with {
+   type-id = "builtin:Error"
+   on-duplicate = .error
+   target = .direct
+   serialize{obj} =
+      rval = object with items{obj}
+      rval.message = obj.message
+      rval.stack = obj.stack
+      if obj[Symbol.error-tags]:
+         rval["::tags"] = obj[Symbol.error-tags]
+      rval
+   deserialize{s} =
+      e = Error{s.message}
+      items{s} each {k, v} when not k in {.message, "::tags"} ->
+         e[k] = v
+      e.stack = s.stack
+      if s["::tags"]:
+         e[Symbol.error-tags] = s["::tags"]
+      e
+}
+
 cmds = {= register, = register-all
         = register-singleton, = register-singletons
         = register-function, = register-functions}
