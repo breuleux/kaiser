@@ -1,6 +1,6 @@
 {
   "name": "kaiser",
-  "description": "Reliable serialization",
+  "description": "Serialization of arbitrary objects",
   "version": "0.0.0",
   "format": "cjs",
   "repository": {

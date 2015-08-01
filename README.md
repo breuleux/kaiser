@@ -12,9 +12,31 @@ dates out of the box. Anything else must be registered.
 Usage
 -----
 
-    kaiser = require("kaiser");
-    str = kaiser.serialize({a: 1, b: new Date()});
-    obj = kaiser.deserialize(str);
+Simple serialization/deserialization
+
+    var kaiser = require("kaiser");
+    var str = kaiser.serialize({a: 1, b: new Date()});
+    var obj = kaiser.deserialize(str);
+
+
+### whitelists
+
+You can also instantiate a `Serializer` object with a whitelist, which
+means only a limited list of approved objects and classes can be
+serialized or deserialized. The resulting serializer, when used on
+unsanitized data, will be as safe as the most unsafe object in the
+whitelist, so be careful:
+
+    var kaiser = require("kaiser");
+    var s = kaiser.Serializer([Date, Person]);
+
+    var str1 = ser.serialize({a: new Date(), b: new Person()}); // OK!
+    var obj2 = ser.deserialize(str1);                           // OK!
+
+    var str2 = ser.serialize({a: 1, b: new Animal()});          // ERROR!
+
+    var str3 = kaiser.serialize({a: 1, b: new Animal()});       // OK (generic serializer)
+    var obj3 = ser.deserialize(str3);                           // ERROR!
 
 
 Registering functionality
@@ -26,9 +48,21 @@ functionality in any application that imports it and will not clash
 with any other package. There are a few ways to do it, and `kaiser`
 can help you.
 
-Suppose you have the following definition:
+First you must import `kaiser`, for that you have two options:
 
+    // Option A: Import the full package
     kaiser = require("kaiser");
+
+    // Option B: Import only the registering functions
+    kaiser = require("kaiser/reg");
+
+The difference between the two is that option B only defines a few
+stubs to let you register your classes for serialization and is about
+300 bytes minified, so it is super cheap if you only want to provide
+the functionality to people who need it. Then when they import the
+full `kaiser` package, the serializers will get registered for real.
+
+Now, suppose you have the following definition:
 
     function Vehicle(brand) {
         this.brand = brand;
