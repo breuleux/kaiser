@@ -63,6 +63,14 @@ make-type-id{object, match policy} =
 
 register{object, _policy} =
 
+   if not _policy.deserialize and _policy.create:
+      _policy.deserialize{x} =
+         r = _policy.create{}
+         _policy.fill{r, x}
+         r
+   if _policy.deserialize and not _policy.create:
+      _policy.create = null
+
    policy = object-serializer{object} & _policy
 
    if policy.target !== .self and object.prototype and not policy.ignore-prototype:
@@ -111,6 +119,11 @@ object-serializer{proto} = {
       rval = Object.create{proto}
       items{x} each {k, v} -> rval[k] = v
       rval
+   create{} =
+      Object.create{proto}
+   fill{rval, x} =
+      items{x} each {k, v} -> rval[k] = v
+      rval
 }
 
 singleton-serializer{object} = {
@@ -154,6 +167,7 @@ class Serializer:
          @white-list and wl = {
             native = true
             "builtin:Object" = true
+            "builtin:Array" = true
          }
          acquire{white-list or {}} where acquire{match w} =
             Array? ->
@@ -165,14 +179,23 @@ class Serializer:
             {^TYPEID => tid} ->
                wl[tid] = true
 
-   to-object{match obj, recursive = true} =
-      null? or undefined? or Boolean? or Number? or String? ->
-         {type-id = 'native', data = obj}
-      Array? when recursive ->
-         obj each x -> @to-object{x}
-      Array? ->
-         obj each x -> x
-      else ->
+   to-object{obj, recursive = true, seen = new Map{}} =
+
+      match obj:
+         null? or undefined? or Boolean? or Number? or String? ->
+            return {type-id = 'native', data = obj}
+         else ->
+            pass
+
+      if seen.has{obj}:
+         {d, i} = seen.get{obj}
+         d.ref = i
+         return {ref = i}
+
+      rval = {=}
+      seen.set{obj, {rval, seen.size}}
+
+      rval &:
          tid = obj[TYPEID]
          if not tid:
             throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
@@ -197,38 +220,55 @@ class Serializer:
                null? or undefined? or String? or Number? or Boolean? ->
                   ser0
                Array? ->
-                  ser0 each x -> @to-object{x}
+                  ser0 each x -> @to-object{x, recursive, seen}
                Object? ->
-                  object with items{ser0} each {k, v} -> {k, @to-object{v}}
+                  object with items{ser0} each {k, v} ->
+                     {k, @to-object{v, recursive, seen}}
          {type-id = tid, data = ser1}
 
-   from-object{match obj, recursive = true} =
-      Array? when recursive ->
-         obj each x -> @from-object{x}
-      Array? ->
-         obj each x -> x
-      else ->
-         tid = obj.type-id
+      rval
+
+   from-object{obj, recursive = true, made = {=}} =
+
+      assim{match data} =
+         when not recursive ->
+            object with items{data}
+         null? or undefined? or String? or Number? or Boolean? ->
+            data
+         Array? ->
+            data each x -> @from-object{x, recursive, made}
+         Object? ->
+            object with items{data} each {k, v} ->
+               {k, @from-object{v, recursive, made}}
+
+      tid = obj.type-id
+      if tid === undefined:
+         if Object.has-property.call{made, obj.ref}:
+            made[obj.ref]
+         else:
+            throw E.kaiser.no-ref with
+               'Could not deserialize object reference {obj.ref} because it is nested recursively and kaiser does not know how to build it.'
+      else:
          if @white-list and not @white-list[tid]:
-            throw E.kaiser.deserialize{'Cannot deserialize {obj.data} because typeId "{tid}" is not in the whitelist'}
-         match tid:
-            .native ->
-               obj.data
-            else ->
-               deser = match registry[tid]:
-                  undefined? ->
-                     throw E.kaiser.deserialize{'No deserializer for typeId "{tid}"'}
-                  policy ->
-                     policy.deserialize with match obj.data as data:
-                        when not recursive ->
-                           object with items{data}
-                        null? or undefined? or String? or Number? or Boolean? ->
-                           data
-                        Array? ->
-                           data each x -> @from-object{x}
-                        Object? ->
-                           object with items{data} each {k, v} ->
-                              {k, @from-object{v}}
+            throw E.kaiser.deserialize with
+               'Cannot deserialize {obj.data}: typeId "{tid}" is not in the whitelist'
+         if tid === "native":
+            obj.data
+         else:
+            deser = match registry[tid]:
+               undefined? ->
+                  throw E.kaiser.deserialize{'No deserializer for typeId "{tid}"'}
+               policy when obj.ref !== undefined and policy.create ->
+                  rval = policy.create{}
+                  made[obj.ref] = rval
+                  policy.fill{rval, assim{obj.data}}
+                  rval
+               policy ->
+                  x = policy.deserialize{assim{obj.data}}
+                  if obj.ref:
+                     made[obj.ref] = x
+                  x
+            deser
       
 
    serialize{obj} =
@@ -257,6 +297,21 @@ deep-copy = default-serializer.deep-copy.bind{default-serializer}
 ;; BUILTINS ;;
 ;;;;;;;;;;;;;;
 
+register{Array.prototype} with {
+   type-id = "builtin:Array"
+   on-duplicate = .error
+   target = .direct
+   serialize{obj} =
+      obj
+   deserialize{obj} =
+      obj
+   create{} =
+      {}
+   fill{a, obj} =
+      obj each x -> a.push{x}
+      a
+}
+
 register{Object.prototype} with {
    type-id = "builtin:Object"
    on-duplicate = .error
@@ -265,6 +320,11 @@ register{Object.prototype} with {
       obj
    deserialize{obj} =
       obj
+   create{} =
+      {=}
+   fill{o, obj} =
+      o &: obj
+      o
 }
 
 register{Date.prototype} with {

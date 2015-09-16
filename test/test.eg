@@ -262,3 +262,29 @@ describe "copy":
       assert a.c !== b.c
 
 
+describe "preserve identity":
+
+   it "several instances of an object":
+      a = {1, 2, 3}
+      b = {x = a, y = a, z = {1, 2, 3}}
+      r = round{b}
+      {.x, .y, .z} each field ->
+         assert r[field] == {1, 2, 3}
+      assert r.x === r.y and r.x !== r.z
+
+   it "recursive data structure":
+      a = {a = null}
+      a.a = a
+      r = round{a}
+      assert r === r.a
+      assert r !== a
+
+   it "recursive nested":
+      a = {b = {c = {d = null}}}
+      a.b.c.d = a
+      r = round{a}
+      assert r === r.b.c.d
+
+   ;; TODO: test with custom classes
+   ;; TODO: test errors
+

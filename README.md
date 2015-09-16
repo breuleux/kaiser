@@ -15,6 +15,9 @@ deserializer.
 * **General**: kaiser can be configured to serialize and deserialize
   any data.
 
+* **Powerful**: object identity is preserved by deserialization.
+  Circular references can be handled.
+
 * **Safe(ish)**: the deserializer can be configured to only
   deserialize objects from a whitelist. This is safe as long as the
   serializers in the whitelist are safe.
@@ -22,6 +25,9 @@ deserializer.
 * **Low registration overhead**: packages can register custom
   serializers for their classes and functions using `kaiser/reg`,
   which is about 300 bytes minified.
+
+* **Other uses**: kaiser can be used to make shallow or deep copies of
+  objects.
 
 The `kaiser` package in and of itself is fairly large for what it
 does, mostly because it is written in Earl Grey, which comes with some
@@ -242,4 +248,15 @@ you can focus on the logic.
 exactly. It will receive the same output serialize produced, with
 already deserialized fields (do not call `kaiser.deserialize` in that
 function).
+
+In addition, the following two methods must be implemented to support
+circular references for your type:
+
+**`create()`** must return an instance of the object.
+
+**`fill(target, form)`** must fill the return value of `create` so
+that `target` becomes the deserialized `form`.
+
+To put it simply, `var r = create(); fill(r, x)` must be equivalent to
+`var r = deserialize(x)`.
 
