@@ -148,7 +148,7 @@ Install the `uuid` command on your system and run it. It will give you
 a (presumably) unique hexadecimal identifier that you can paste in
 your code:
 
-```javascript
+```bash
 $ uuid
 bfd249d8-302a-11e5-8044-278351ad39e9
 ```
@@ -209,8 +209,8 @@ kaiser.registerSingletons([hello, bye], {
 });
 ```
 
-The above will registers ids "npm:my-package@1.2.3/hello" and
-"npm:my-package@1.2.3/bye".
+The above will registers ids `"npm:my-package@1.2.3/hello"` and
+`"npm:my-package@1.2.3/bye"`.
 
 
 Custom serialization
