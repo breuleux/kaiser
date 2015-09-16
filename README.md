@@ -6,7 +6,26 @@ Serialization library that allows arbitrary objects and classes to be
 serialized or deserialized in a safe way.
 
 kaiser can serialize standard JavaScript data, objects, arrays and
-dates out of the box. Anything else must be registered.
+dates out of the box.
+
+However, kaiser is not *magical*. Any non-native object type has to be
+registered with a type id (ideally a uuid), a serializer and a
+deserializer.
+
+* **General**: kaiser can be configured to serialize and deserialize
+  any data.
+
+* **Safe(ish)**: the deserializer can be configured to only
+  deserialize objects from a whitelist. This is safe as long as the
+  serializers in the whitelist are safe.
+
+* **Low registration overhead**: packages can register custom
+  serializers for their classes and functions using `kaiser/reg`,
+  which is about 300 bytes minified.
+
+The `kaiser` package in and of itself is fairly large for what it
+does, mostly because it is written in Earl Grey, which comes with some
+overhead. I plan to address that eventually.
 
 
 Usage
@@ -14,10 +33,11 @@ Usage
 
 Simple serialization/deserialization
 
-    var kaiser = require("kaiser");
-    var str = kaiser.serialize({a: 1, b: new Date()});
-    var obj = kaiser.deserialize(str);
-
+```javascript
+var kaiser = require("kaiser");
+var str = kaiser.serialize({a: 1, b: new Date()});
+var obj = kaiser.deserialize(str);
+```
 
 ### whitelists
 
@@ -27,16 +47,18 @@ serialized or deserialized. The resulting serializer, when used on
 unsanitized data, will be as safe as the most unsafe object in the
 whitelist, so be careful:
 
-    var kaiser = require("kaiser");
-    var s = kaiser.Serializer([Date, Person]);
+```javascript
+var kaiser = require("kaiser");
+var s = kaiser.Serializer([Date, Person]);
 
-    var str1 = ser.serialize({a: new Date(), b: new Person()}); // OK!
-    var obj2 = ser.deserialize(str1);                           // OK!
+var str1 = ser.serialize({a: new Date(), b: new Person()}); // OK!
+var obj2 = ser.deserialize(str1);                           // OK!
 
-    var str2 = ser.serialize({a: 1, b: new Animal()});          // ERROR!
+var str2 = ser.serialize({a: 1, b: new Animal()});          // ERROR!
 
-    var str3 = kaiser.serialize({a: 1, b: new Animal()});       // OK (generic serializer)
-    var obj3 = ser.deserialize(str3);                           // ERROR!
+var str3 = kaiser.serialize({a: 1, b: new Animal()});       // OK (generic serializer)
+var obj3 = ser.deserialize(str3);                           // ERROR!
+```
 
 
 Registering functionality
@@ -50,11 +72,13 @@ can help you.
 
 First you must import `kaiser`, for that you have two options:
 
-    // Option A: Import the full package
-    kaiser = require("kaiser");
+```javascript
+// Option A: Import the full package
+kaiser = require("kaiser");
 
-    // Option B: Import only the registering functions
-    kaiser = require("kaiser/reg");
+// Option B: Import only the registering functions
+kaiser = require("kaiser/reg");
+```
 
 The difference between the two is that option B only defines a few
 stubs to let you register your classes for serialization and is about
@@ -64,44 +88,53 @@ full `kaiser` package, the serializers will get registered for real.
 
 Now, suppose you have the following definition:
 
-    function Vehicle(brand) {
-        this.brand = brand;
-    }
-    Vehicle.prototype.start = function () {
-        console.log("vroom vroom!");
-    }
+```javascript
+function Vehicle(brand) {
+    this.brand = brand;
+}
+Vehicle.prototype.start = function () {
+    console.log("vroom vroom!");
+}
+```
 
 
 ### Use package info
 
 This will assign `Vehicle` the uuid `npm:my-package/Vehicle`:
 
-    kaiser.register(Vehicle.prototype, {
-        package: {name: "my-package", "version": "1.2.3"}
-    });
+```javascript
+kaiser.register(Vehicle.prototype, {
+    package: {name: "my-package", "version": "1.2.3"}
+});
+```
 
 This will assign `Vehicle` the uuid `npm:my-package@1/Vehicle`:
 
-    kaiser.register(Vehicle.prototype, {
-        package: {name: "my-package", "version": "1.2.3"},
-        useVersion: "major"
-    });
+```javascript
+kaiser.register(Vehicle.prototype, {
+    package: {name: "my-package", "version": "1.2.3"},
+    useVersion: "major"
+});
+```
 
 Of course, if you have a `package.json` file in the same directory,
 you should simply do this:
 
-    kaiser.register(Vehicle.prototype, {
-        package: require("./package.json"),
-        useVersion: "minor"
-    });
+```javascript
+kaiser.register(Vehicle.prototype, {
+    package: require("./package.json"),
+    useVersion: "minor"
+});
+```
 
 To register more than one class, use `kaiser.registerAll`:
 
-    kaiser.registerAll([Vehicle.prototype, Animal.prototype], {
-        package: require("./package.json"),
-        useVersion: "minor"
-    });
-
+```javascript
+kaiser.registerAll([Vehicle.prototype, Animal.prototype], {
+    package: require("./package.json"),
+    useVersion: "minor"
+});
+```
 
 ### uuid
 
@@ -109,14 +142,18 @@ Install the `uuid` command on your system and run it. It will give you
 a (presumably) unique hexadecimal identifier that you can paste in
 your code:
 
-    $ uuid
-    bfd249d8-302a-11e5-8044-278351ad39e9
+```javascript
+$ uuid
+bfd249d8-302a-11e5-8044-278351ad39e9
+```
 
 Then you must set the `typeId` field:
 
-    kaiser.register(Vehicle.prototype, {
-        typeId: "bfd249d8-302a-11e5-8044-278351ad39e9"
-    });
+```javascript
+kaiser.register(Vehicle.prototype, {
+    typeId: "bfd249d8-302a-11e5-8044-278351ad39e9"
+});
+```
 
 `kaiser.registerAll` can be used with just one `typeId`. What it will
 do is that it will generate ids like
@@ -152,19 +189,19 @@ as-is. To that purpose you may use `kaiser.registerFunction` or
 have a plural equivalent that lets you register more than one thing at
 once.
 
+```javascript
+function hello(name) {
+    return "hello, " + name
+}
+function bye(name) {
+    return "bye, " + name
+}
 
-    function hello(name) {
-        return "hello, " + name
-    }
-    function bye(name) {
-        return "bye, " + name
-    }
-
-    kaiser.registerSingletons([hello, bye], {
-        package: require("./package.json"),
-        useVersion: "patch"
-    });
-
+kaiser.registerSingletons([hello, bye], {
+    package: require("./package.json"),
+    useVersion: "patch"
+});
+```
 
 The above will registers ids "npm:my-package@1.2.3/hello" and
 "npm:my-package@1.2.3/bye".
@@ -180,16 +217,18 @@ prototype and write the fields back.
 But you can change this. Here is a simple example (of a flawed
 serialization mechanism):
 
-    kaiser.register(Person.prototype, {
-        typeId: "bfd249d8-302a-11e5-8044-278351ad39e9",
-        serialize: function (person) {
-            return person.name + "/" + person.age;
-        },
-        deserialize: function (person) {
-            fields = person.split("/");
-            return new Person(fields[0], parseInt(fields[1]));
-        }
-    });
+```javascript
+kaiser.register(Person.prototype, {
+    typeId: "bfd249d8-302a-11e5-8044-278351ad39e9",
+    serialize: function (person) {
+        return person.name + "/" + person.age;
+    },
+    deserialize: function (person) {
+        fields = person.split("/");
+        return new Person(fields[0], parseInt(fields[1]));
+    }
+});
+```
 
 The serialization and deserialization interface is as follows:
 
@@ -203,15 +242,4 @@ you can focus on the logic.
 exactly. It will receive the same output serialize produced, with
 already deserialized fields (do not call `kaiser.deserialize` in that
 function).
-
-
-
-
-
-
-
-
-
-
-
 
