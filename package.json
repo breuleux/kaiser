@@ -1,13 +1,17 @@
 {
   "name": "kaiser",
   "description": "Serialization of arbitrary objects",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "format": "cjs",
   "repository": {
     "type": "git",
     "url": "https://github.com/breuleux/kaiser"
   },
-  "keywords": ["serialization", "serialize", "deserialize"],
+  "keywords": [
+    "serialization",
+    "serialize",
+    "deserialize"
+  ],
   "author": "Olivier Breuleux",
   "license": "MIT",
   "main": "./lib/index.js",
