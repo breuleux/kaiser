@@ -3,6 +3,8 @@ provide:
 
    TYPEID
 
+   get-handler
+
    Serializer
    default-serializer
    serialize, deserialize
@@ -25,14 +27,19 @@ if global["@@KAISER"]??.loaded:
 
 TYPEID = Symbol{.TYPEID}
 
-
-
 ;;;;;;;;;;;;;;
 ;; Registry ;;
 ;;;;;;;;;;;;;;
 
 
-registry = {=}
+registry = {
+   "native:null" = {=}
+   "native:undefined" = {=}
+   "native:boolean" = {=}
+   "native:number" = {=}
+   "native:string" = {=}
+}
+
 
 object-name{object, req = false} =
    match object??.name or object??.constructor??.name:
@@ -108,6 +115,34 @@ register{object, _policy} =
 register-all{objects, policy} =
    objects each object ->
       register{object, policy & {name-variant = object-name{object}}}
+
+_type-id{match object} =
+   null? or undefined? ->
+      'native:{object}'
+   Boolean? ->
+      'native:boolean'
+   Number? ->
+      'native:number'
+   String? ->
+      'native:string'
+   else ->
+      object[TYPEID]
+
+get-handler{obj} =
+   tid = _type-id{obj}
+   match registry[tid]:
+      undefined? ->
+         throw E.kaiser{'No handler for typeId "{tid}" for object {obj}'}
+      policy and {target => match = .other} ->
+         .self when not Object.has-own-property.call{obj, TYPEID} ->
+            throw E.kaiser with
+               'Object has no typeId: {obj}'
+         .direct and p is Object.get-prototype-of{obj}
+         \ when not p.has-own-property.call{p, TYPEID} ->
+            throw E.kaiser with
+               'Object has no typeId: {obj}'
+         else ->
+            policy
 
 
 object-serializer{proto} = {
@@ -196,23 +231,12 @@ class Serializer:
       seen.set{obj, {rval, seen.size}}
 
       rval &:
-         tid = obj[TYPEID]
-         if not tid:
-            throw E.kaiser.serialize{'Object has no typeId and cannot be serialized: {obj}'}
+         policy = get-handler{obj}
+         tid = policy.type-id
+
          if @white-list and not @white-list[tid]:
             throw E.kaiser.serialize{'Object with type id "{tid}" is not white-listed for serialization: {obj}'}
-         ser0 = match registry[tid]:
-            undefined? ->
-               throw E.kaiser.serialize{'Cannot serialize typeId: "{tid}" for object {obj}'}
-            policy and {target => match} ->
-               .self when not Object.has-own-property.call{obj, TYPEID} ->
-                  throw E.kaiser.serialize with
-                     'Object has no typeId and cannot be serialized: {obj} [1]'
-               .direct and p is Object.get-prototype-of{obj} when not p.has-own-property.call{p, TYPEID} ->
-                  throw E.kaiser.serialize with
-                     'Object has no typeId and cannot be serialized: {obj} [2]'
-               else ->
-                  policy.serialize{obj}
+         ser0 = policy.serialize{obj}
          ser1 =
             match ser0:
                when not recursive ->
