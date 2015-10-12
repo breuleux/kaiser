@@ -33,11 +33,21 @@ TYPEID = Symbol{.TYPEID}
 
 
 registry = {
-   "native:null" = {=}
-   "native:undefined" = {=}
-   "native:boolean" = {=}
-   "native:number" = {=}
-   "native:string" = {=}
+   "native:null" = {
+      type-id = "native:null"
+   }
+   "native:undefined" = {
+      type-id = "native:undefined"
+   }
+   "native:boolean" = {
+      type-id = "native:boolean"
+   }
+   "native:number" = {
+      type-id = "native:number"
+   }
+   "native:string" = {
+      type-id = "native:string"
+   }
 }
 
 
@@ -138,11 +148,15 @@ get-handler{obj} =
             throw E.kaiser with
                'Object has no typeId: {obj}'
          .direct and p is Object.get-prototype-of{obj}
-         \ when not p.has-own-property.call{p, TYPEID} ->
+         \ when not Object.has-own-property.call{p, TYPEID} ->
             throw E.kaiser with
                'Object has no typeId: {obj}'
          else ->
             policy
+
+extend-handler{obj, properties} =
+   h = get-handler{obj}
+   h &: properties
 
 
 object-serializer{proto} = {
