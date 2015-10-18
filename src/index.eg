@@ -4,6 +4,7 @@ provide:
    TYPEID
 
    get-handler
+   extend-handler
 
    Serializer
    default-serializer
