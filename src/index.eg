@@ -270,15 +270,19 @@ class Serializer:
    from-object{obj, recursive = true, made = {=}} =
 
       assim{match data} =
-         when not recursive ->
-            object with items{data}
          null? or undefined? or String? or Number? or Boolean? ->
             data
-         Array? ->
-            data each x -> @from-object{x, recursive, made}
-         Object? ->
-            object with items{data} each {k, v} ->
-               {k, @from-object{v, recursive, made}}
+         Array? match ->
+            when recursive ->
+               data each x -> @from-object{x, recursive, made}
+            else ->
+               data.slice{0}
+         Object? match ->
+            when recursive ->
+               object with items{data} each {k, v} ->
+                  {k, @from-object{v, recursive, made}}
+            else ->
+               object with items{data}
 
       tid = obj.type-id
       if tid === undefined:
