@@ -351,7 +351,7 @@ register{Array.prototype} with {
    create{} =
       {}
    fill{a, obj} =
-      obj each x -> a.push{x}
+      a.splice{0, a.length, *obj}
       a
 }
 
