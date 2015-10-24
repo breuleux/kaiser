@@ -52,7 +52,7 @@ registry = {
 }
 
 
-object-name{object, req = false} =
+object-name{object, req = true} =
    match object??.name or object??.constructor??.name:
       false? when req ->
          throw E.kaiser.name-required with
