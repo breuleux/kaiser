@@ -4,6 +4,7 @@ provide:
    TYPEID
 
    get-handler
+   maybe-handler
    extend-handler
 
    Serializer
@@ -90,6 +91,8 @@ register{object, _policy} =
          r
    if _policy.deserialize and not _policy.create:
       _policy.create = null
+   if _policy.deserialize and not _policy.fill:
+      _policy.fill = null
 
    policy = object-serializer{object} & _policy
 
@@ -156,6 +159,12 @@ get-handler{obj} =
                'Object has no typeId: {obj}'
          else ->
             policy
+
+maybe-handler{obj} =
+   try:
+      get-handler{obj}
+   catch E.kaiser? e:
+      null
 
 extend-handler{obj, properties} =
    h = get-handler{obj}
