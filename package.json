@@ -1,7 +1,7 @@
 {
   "name": "kaiser",
   "description": "Serialization of arbitrary objects",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "format": "cjs",
   "repository": {
     "type": "git",
