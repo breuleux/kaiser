@@ -172,7 +172,7 @@ extend-handler{obj, properties} =
 
 
 object-serializer{proto} = {
-   on-duplicate = .error
+   on-duplicate = .replace
    target = .direct
    ignore-prototype = false
    serialize{x} = object with items{x}
@@ -353,7 +353,7 @@ deep-copy = default-serializer.deep-copy.bind{default-serializer}
 
 register{Array.prototype} with {
    type-id = "builtin:Array"
-   on-duplicate = .error
+   on-duplicate = .replace
    target = .direct
    serialize{obj} =
       obj
@@ -368,7 +368,7 @@ register{Array.prototype} with {
 
 register{Object.prototype} with {
    type-id = "builtin:Object"
-   on-duplicate = .error
+   on-duplicate = .replace
    target = .direct
    serialize{obj} =
       obj
@@ -383,7 +383,7 @@ register{Object.prototype} with {
 
 register{Date.prototype} with {
    type-id = "builtin:Date"
-   on-duplicate = .error
+   on-duplicate = .replace
    target = .direct
    serialize{obj} =
       String{obj}
@@ -393,7 +393,7 @@ register{Date.prototype} with {
 
 register{Error.prototype} with {
    type-id = "builtin:Error"
-   on-duplicate = .error
+   on-duplicate = .replace
    target = .direct
    serialize{obj} =
       rval = object with items{obj}
